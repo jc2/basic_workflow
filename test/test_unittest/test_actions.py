@@ -1,6 +1,10 @@
-import pytest
+import json
+from unittest.mock import patch
 
-from main import validate_account, get_account_balance, deposit, withdraw_in_pesos
+import pytest
+import requests
+
+from main import validate_account, get_account_balance, deposit, withdraw_in_pesos, withdraw_in_dolars
 from main import ActionError
 
 
@@ -74,6 +78,7 @@ def test_deposit_exceptions(user_id, money):
     with pytest.raises(ActionError):
         deposit(user_id, money)
 
+
 @pytest.mark.parametrize(
     "user_id,money,expected",
     [
@@ -97,3 +102,38 @@ def test_withdraw_in_pesos(user_id, money, expected):
 def test_withdraw_in_pesos_exceptions(user_id, money):
     with pytest.raises(ActionError):
         withdraw_in_pesos(user_id, money)
+
+
+@pytest.mark.parametrize(
+    "user_id,money,expected",
+    [
+        ("user1", 50, 100000),
+    ]
+)
+def test_withdraw_in_dolars(user_id, money, expected):
+    with patch('clients.currconv.requests.get') as mock_get:
+        mock_resp = requests.models.Response()
+        mock_resp.status_code = 200
+        mock_resp._content = json.dumps({"USD_COP": 2000}).encode()
+        mock_get.return_value = mock_resp
+        result = withdraw_in_dolars(user_id, money)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "user_id,money",
+    [
+        (12345, 50),
+        ("user2", 50),
+        ("user3", 50),
+        ("user1", 100),
+    ]
+)
+def test_withdraw_in_dolars_exceptions(user_id, money):
+    with pytest.raises(ActionError):
+        with patch('clients.currconv.requests.get') as mock_get:
+            mock_resp = requests.models.Response()
+            mock_resp.status_code = 200
+            mock_resp._content = json.dumps({"USD_COP": 2000}).encode()
+            mock_get.return_value = mock_resp
+            withdraw_in_dolars(user_id, money)

@@ -1,11 +1,10 @@
 import json
 from json.decoder import JSONDecodeError
-from collections import namedtuple
-from attr import has
 
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
+from clients.currconv import convert
 from validators import WORKFLOW_SCHEMA
 
 operator_functions = {
@@ -103,6 +102,21 @@ def withdraw_in_pesos(user_id, money):
         if user.user_id == user_id:
             if not user.has_active_session:
                 raise ActionError("Withdraw error: User needs to be validated first")
+            if user.balance < money:
+                raise ActionError("Withdraw error: Insufficient balance")
+            user.balance = user.balance - money
+            return user.balance
+    raise ActionError("Withdraw error: User not found")
+
+
+def withdraw_in_dolars(user_id, money):
+    if type(user_id) != str or type(money) != int:
+        raise ActionError("Withdraw error: Inputs do not have proper type")
+    for user in users:
+        if user.user_id == user_id:
+            if not user.has_active_session:
+                raise ActionError("Withdraw error: User needs to be validated first")
+            money = (money * convert("usd", "cop"))
             if user.balance < money:
                 raise ActionError("Withdraw error: Insufficient balance")
             user.balance = user.balance - money
