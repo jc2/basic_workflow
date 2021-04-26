@@ -1,6 +1,6 @@
 import pytest
 
-from .main import ConditionError, execute_conditions
+from main import ConditionError, execute_conditions
 
 COMMAND_DATA = {
     "test1": {"a": None},
@@ -35,6 +35,10 @@ MULTIPLE_CONDITION = [
         ("eq", 2, 3, False),
         ("eq", 2, 1, False),
         ("eq", 2, 2, True),
+        ("eq", True, True, True),
+        ("eq", False, True, False),
+        ("eq", True, False, False),
+        ("gt", True, False, True),
     ]
 )
 def test_one_condition(operator, left_input, right_input, expected):
@@ -60,6 +64,6 @@ def test_multiple_condition(operator1, left_input1, right_input1, operator2, lef
     assert execute_conditions(COMMAND_DATA, MULTIPLE_CONDITION) is expected
 
 
-def test_conditions_keys():
+def test_conditions_exceptions():
     with pytest.raises(ConditionError, match=r".* attributes"):
         execute_conditions({}, [{}])
