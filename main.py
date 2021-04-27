@@ -143,6 +143,9 @@ class Step:
         else:
             return {}
 
+    def __str__(self):
+        return f"Step: {self.id} -> {self._action.name if self._action else 'No action'}"
+
 
 class WorkFlowError(Exception):
     pass
@@ -206,7 +209,8 @@ class WorkFlow():
 
         return step
 
-    def _flow(self, step):
+    def _flow(self, step, history):
+        history.append(step)
         try:
             response = step.run(self.data)
         except (StepError, ActionError) as e:
@@ -217,7 +221,9 @@ class WorkFlow():
                 self._save_data(step.id, k, v)
 
             for child in step.get_childrens():
-                self._flow(child)
+                self._flow(child, history)
 
     def run(self):
-        self._flow(self.root_step)
+        history = []
+        self._flow(self.root_step, history)
+        return history
