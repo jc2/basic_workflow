@@ -12,7 +12,7 @@ params = {
 }
 
 
-class CorrConvError(Exception):
+class CurrConvError(Exception):
     pass
 
 
@@ -23,8 +23,8 @@ def convert(currency, to):
         response = requests.get(url, params=params, timeout=2)
         response.raise_for_status()
     except (HTTPError, ConnectTimeout, ReadTimeout) as e:
-        raise CorrConvError(f"Can not connect to currency converter API: {str(e)}")
+        raise CurrConvError(f"Can not connect to currency converter API: {str(e)}")
     try:
         return response.json().get(symbols)
     except JSONDecodeError as e:
-        raise CorrConvError(f"There was a problem parsing data: {str(e)}")
+        raise CurrConvError(f"There was a problem parsing data: {str(e)}")

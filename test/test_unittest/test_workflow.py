@@ -1,6 +1,10 @@
 import pytest
+import json
+from unittest.mock import patch
 
-from main import load_workflow, WorkflowError
+import requests
+
+from main import WorkFlow, WorkFlowError, users
 
 input_json_ok = """
 {
@@ -30,15 +34,15 @@ input_json_ok = """
       "transitions": [
         {
           "condition": [
-            {"from_id": "account_balance", "field_id": "balance", "operator": "gt", "value": 100000}
+            {"from_id": "account_balance", "field_id": "balance", "operator": "gt", "value": 100}
           ],
           "target": "withdraw_30"
         },
         {
           "condition": [
-            {"from_id": "account_balance", "field_id": "balance", "operator": "lt", "value": 100000}
+            {"from_id": "account_balance", "field_id": "balance", "operator": "lt", "value": 100}
           ],
-          "target": "deposit_200"
+          "target": "deposit_20"
         }
       ]
     },
@@ -51,8 +55,26 @@ input_json_ok = """
       "action": "withdraw_in_dollars",
       "transitions": [
         {
+          "condition": [{"from_id": "withdraw_30", "field_id": "balance", "operator": "lt", "value": 90}],
+          "target": "withdraw_30_1"
+        },
+        {
           "condition": [],
           "target": "account_balance_end_30"
+        }
+      ]
+    },
+    {
+      "id": "withdraw_30_1",
+      "params": {
+        "user_id": {"from_id": "start", "param_id": "user_id"},
+        "money": {"from_id": null, "value": 30}
+      },
+      "action": "withdraw_in_pesos",
+      "transitions": [
+        {
+          "condition": [],
+          "target": "account_balance_end_60"
         }
       ]
     },
@@ -65,21 +87,29 @@ input_json_ok = """
       "transitions": []
     },
     {
-      "id": "deposit_200",
+      "id": "account_balance_end_60",
+      "params": {
+        "user_id": {"from_id": "start", "param_id": "user_id"}
+      },
+      "action": "get_account_balance",
+      "transitions": []
+    },
+    {
+      "id": "deposit_20",
       "params": {
         "user_id": {"from_id": "start", "param_id": "user_id"},
-        "money": {"from_id": null, "value": 200000}
+        "money": {"from_id": null, "value": 20}
       },
       "action": "deposit",
       "transitions": [
         {
           "condition": [],
-          "target": "account_balance_200"
+          "target": "account_balance_20"
         }
       ]
     },
     {
-      "id": "account_balance_200",
+      "id": "account_balance_20",
       "params": {
         "user_id": {"from_id": "start", "param_id": "user_id"}
       },
@@ -87,7 +117,7 @@ input_json_ok = """
       "transitions": [
         {
           "condition": [
-            {"from_id": "account_balance", "field_id": "balance", "operator": "gt", "value": 250000}
+            {"from_id": "account_balance", "field_id": "balance", "operator": "gt", "value": 40}
           ],
           "target": "withdraw_50"
         }
@@ -97,7 +127,7 @@ input_json_ok = """
       "id": "withdraw_50",
       "params": {
         "user_id": {"from_id": "start", "param_id": "user_id"},
-        "money": {"from_id": null, "value": 50000}
+        "money": {"from_id": null, "value": 50}
       },
       "action": "withdraw_in_dollars",
       "transitions": [
@@ -192,19 +222,87 @@ input_json_bad3 = """
 
 
 def test_json_schema_ok():
-    load_workflow(input_json_ok)
+    WorkFlow(input_json_ok)
 
 
 def test_bad_json_schema1():
-    with pytest.raises(WorkflowError, match=r".*trigger.*"):
-        load_workflow(input_json_bad1)
+    with pytest.raises(WorkFlowError, match=r".*trigger.*"):
+        WorkFlow(input_json_bad1)
 
 
 def test_bad_json_schema2():
-    with pytest.raises(WorkflowError, match=r".*steps.*"):
-        load_workflow(input_json_bad2)
+    with pytest.raises(WorkFlowError, match=r".*steps.*"):
+        WorkFlow(input_json_bad2)
 
 
 def test_bad_json():
-    with pytest.raises(WorkflowError, match=r".*well formatted.*"):
-        load_workflow(input_json_bad3)
+    with pytest.raises(WorkFlowError, match=r".*well formatted.*"):
+        WorkFlow(input_json_bad3)
+
+
+def test_load_flow():
+    j = json.loads(input_json_ok)
+    t = j.get("trigger")
+    initial_data = {t.get("id"): t.get("params")}
+
+    w = WorkFlow(input_json_ok)
+    assert w.data == initial_data
+
+    expected_children_number = len(j.get("steps")) + 1  # trigger
+
+    def count_tree(root):
+        total = [1]
+        for c in root.get_childrens():
+            total.append(count_tree(c))
+        return sum(total)
+
+    count = count_tree(w.root_step)
+
+    assert count == expected_children_number
+
+
+@pytest.mark.parametrize(
+    "user_id,pin,expected_balance",
+    [
+        ("105398891_1", 2090, 100),
+        ("105398891_2", 2090, 41),
+        ("105398891_3", 2090, 69),
+    ]
+)
+def test_run_flow(user_id, pin, expected_balance):
+    j = json.loads(input_json_ok)
+    j["trigger"]["params"]["user_id"] = user_id
+    j["trigger"]["params"]["pin"] = pin
+    w = WorkFlow(json.dumps(j))
+
+    with patch('clients.currconv.requests.get') as mock_get:
+        mock_resp = requests.models.Response()
+        mock_resp.status_code = 200
+        mock_resp._content = json.dumps({"USD_COP": 1}).encode()
+        mock_get.return_value = mock_resp
+        w.run()
+
+    for user in users:
+        if user.user_id == user_id:
+            assert user.balance == expected_balance
+
+
+@pytest.mark.parametrize(
+    "user_id,pin",
+    [
+        ("105398891_4", 2090),
+        ("105398891_1", 20901),
+    ]
+)
+def test_run_flow_exceptions(user_id, pin):
+    j = json.loads(input_json_ok)
+    j["trigger"]["params"]["user_id"] = user_id
+    j["trigger"]["params"]["pin"] = pin
+    w = WorkFlow(input_json_ok)
+    with pytest.raises(WorkFlowError):
+        with patch('clients.currconv.requests.get') as mock_get:
+            mock_resp = requests.models.Response()
+            mock_resp.status_code = 200
+            mock_resp._content = json.dumps({"USD_COP": 1}).encode()
+            mock_get.return_value = mock_resp
+            w.run()

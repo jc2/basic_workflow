@@ -1,11 +1,17 @@
 import pytest
 
-from main import ConditionError, execute_conditions
+from main import StepError, Step
 
-COMMAND_DATA = {
+WORKFLOW_DATA = {
     "test1": {"a": None},
     "test2": {"a": None,  "b": None},
     "test3": {"a": None},
+}
+
+PARAMS = {
+    "a": {"from_id": "test1", "param_id": "a"},
+    "b": {"from_id": "test2", "param_id": "b"},
+    "c": {"from_id": None, "value": 1},
 }
 
 ONE_CONDITION = [
@@ -42,9 +48,11 @@ MULTIPLE_CONDITION = [
     ]
 )
 def test_one_condition(operator, left_input, right_input, expected):
-    COMMAND_DATA["test2"].update({"a": left_input})
+    WORKFLOW_DATA["test2"].update({"a": left_input})
     ONE_CONDITION[0].update({"operator": operator, "value": right_input})
-    assert execute_conditions(COMMAND_DATA, ONE_CONDITION) is expected
+
+    s = Step("", None, None, None, ONE_CONDITION)
+    assert s._execute_conditions(WORKFLOW_DATA) is expected
 
 
 @pytest.mark.parametrize(
@@ -57,13 +65,30 @@ def test_one_condition(operator, left_input, right_input, expected):
     ]
 )
 def test_multiple_condition(operator1, left_input1, right_input1, operator2, left_input2, right_input2, expected):
-    COMMAND_DATA["test1"].update({"a": left_input1})
-    COMMAND_DATA["test2"].update({"a": left_input2})
+    WORKFLOW_DATA["test1"].update({"a": left_input1})
+    WORKFLOW_DATA["test2"].update({"a": left_input2})
     MULTIPLE_CONDITION[0].update({"operator": operator1, "value": right_input1})
     MULTIPLE_CONDITION[1].update({"operator": operator2, "value": right_input2})
-    assert execute_conditions(COMMAND_DATA, MULTIPLE_CONDITION) is expected
+    s = Step("", None, None, None, MULTIPLE_CONDITION)
+    assert s._execute_conditions(WORKFLOW_DATA) is expected
 
 
 def test_conditions_exceptions():
-    with pytest.raises(ConditionError, match=r".* attributes"):
-        execute_conditions({}, [{}])
+    s = Step("", None, None, None, [{"test1": ""}])
+    with pytest.raises(StepError, match=r"Attributes .*"):
+        s._execute_conditions({})
+
+
+def test_params():
+    WORKFLOW_DATA["test1"].update({"a": 10})
+    WORKFLOW_DATA["test2"].update({"b": 20})
+    s = Step("", None, PARAMS, None, None)
+    result = s._get_params(WORKFLOW_DATA)
+    assert result == {"a": 10, "b": 20, "c": 1}
+
+
+def test_params_bad():
+    WORKFLOW_DATA.pop("test1")
+    s = Step("", None, PARAMS, None, None)
+    with pytest.raises(StepError, match=r"Attributes .*"):
+        s._get_params(WORKFLOW_DATA)
