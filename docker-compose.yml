@@ -1,0 +1,27 @@
+version: "3.9"
+   
+services:
+
+    mongo:
+        image: mongo
+        container_name: workflow_mongo_db
+        ports:
+            - 27017:27017
+        volumes:
+            - /mongo_volume:/data/db
+            - ./config/mongo/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js
+        env_file:
+          - .env
+    
+    api:
+        build: .
+        container_name: workflow_api
+        env_file:
+            - .env
+        command: >
+                sh -c "pytest &&
+                       gunicorn app:app --bind 0.0.0.0:8000"
+        volumes:
+            - .:/code
+        ports:
+            - 8000:8000
