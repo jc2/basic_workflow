@@ -1,28 +1,14 @@
-import os
 import json
-from flask import Flask, request, jsonify
-from flask_mongoengine import MongoEngine
 
-app = Flask(__name__)
+from flask import Blueprint, jsonify, request, render_template
 
-app.config['MONGODB_SETTINGS'] = {
-    'host': os.getenv('MONGO_HOST'),
-    'port': int(os.getenv('MONGO_PORT')),
-    'db': os.getenv('MONGO_DB'),
-    'username': os.getenv('MONGO_USER'),
-    'password': os.getenv('MONGO_PASSWORD')
-}
+from app.models import User
+from app.workflow.core import WorkFlow
 
-db = MongoEngine()
-db.init_app(app)
+bp = Blueprint('bp', __name__)
 
 
-class User(db.Document):
-    user_id = db.StringField()
-    pin = db.IntField()
-
-
-@app.route('/users/', methods=['GET'])
+@bp.route('/users/', methods=['GET'])
 def query_records():
     user_id = request.args.get('user_id')
     if user_id:
@@ -35,27 +21,26 @@ def query_records():
         return jsonify(User.objects())
 
 
-@app.route('/users/', methods=['POST'])
+@bp.route('/users/', methods=['POST'])
 def create_record():
     record = json.loads(request.data)
-    user = User(user_id=record['user_id'],
-                pin=record['pin'])
+    user = User(**record)
     user.save()
     return jsonify(user)
 
 
-@app.route('/users/', methods=['PUT'])
+@bp.route('/users/', methods=['PUT'])
 def update_record():
     record = json.loads(request.data)
     user = User.objects(user_id=record['user_id']).first()
     if not user:
         return jsonify({'error': 'data not found'})
     else:
-        user.update(pin=record['pin'])
+        user.update(**record)
     return jsonify(user)
 
 
-@app.route('/users/', methods=['DELETE'])
+@bp.route('/users/', methods=['DELETE'])
 def delete_record():
     record = json.loads(request.data)
     user = User.objects(user_id=record['user_id']).first()
@@ -66,5 +51,16 @@ def delete_record():
     return jsonify(user)
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+@bp.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
+
+
+@bp.route('/uploader', methods=['POST'])
+def upload_file():
+    if request.method == 'POST':
+        f = request.files['file']
+        json_ = f.read()
+        workflow = WorkFlow(json_)
+        workflow_history = workflow.run()
+    return render_template('history.html', history=workflow_history)

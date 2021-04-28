@@ -20,7 +20,7 @@ def convert(currency, to):
     symbols = f"{currency.upper()}_{to.upper()}"
     params.update({"q": symbols})
     try:
-        response = requests.get(url, params=params, timeout=2)
+        response = requests.get(url, params=params)
         response.raise_for_status()
     except (HTTPError, ConnectTimeout, ReadTimeout) as e:
         raise CurrConvError(f"Can not connect to currency converter API: {str(e)}")

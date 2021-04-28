@@ -1,31 +1,14 @@
-from collections import defaultdict
 import json
 from json.decoder import JSONDecodeError
+from collections import defaultdict
 
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
-from clients.currconv import convert
-from validators import WORKFLOW_SCHEMA
-from utils import operator_functions
-
-
-class User():
-    def __init__(self, user_id, pin, balance, has_active_session):
-        self.user_id = user_id
-        self.pin = pin
-        self.balance = balance
-        self.has_active_session = has_active_session
-
-
-users = [
-    User('user1', 12345, 1000000, True),
-    User('user2', 12345, 1000000, False),
-    User('105398891_1', 2090, 100, False),
-    User('105398891_2', 2090, 101, False),
-    User('105398891_3', 2090, 99, False),
-    User('105398891_4', 2090, 10, False),
-]
+from clients.currconv import CurrConvError, convert
+from app.validators import WORKFLOW_SCHEMA
+from app.utils import operator_functions
+from app.models import User
 
 
 class ActionError(Exception):
@@ -43,29 +26,30 @@ class Action:
     def _validate_account(self, user_id, pin):
         if type(user_id) != str or type(pin) != int:
             raise ActionError("Inputs do not have proper type")
-        for user in users:
-            if user.user_id == user_id and user.pin == pin:
-                user.has_active_session = True
-                return {"is_valid": True}
+        user = User.objects(user_id=user_id, pin=pin).first()
+        if user:
+            user.update(**{"has_active_session": True})
+            return {"is_valid": True}
         self._not_found()
 
     def _get_account_balance(self, user_id):
         if type(user_id) != str:
             raise ActionError("Inputs do not have proper type")
-        for user in users:
-            if user.user_id == user_id:
-                self._check_session(user)
-                return {"balance": user.balance}
+        user = User.objects(user_id=user_id).first()
+        if user:
+            self._check_session(user)
+            return {"balance": user.balance}
         self._not_found()
 
     def _deposit(self, user_id, money):
         if type(user_id) != str or type(money) != int:
             raise ActionError("Inputs do not have proper type")
-        for user in users:
-            if user.user_id == user_id:
-                self._check_session(user)
-                user.balance = user.balance + money
-                return {"balance": user.balance}
+        user = User.objects(user_id=user_id).first()
+        if user:
+            self._check_session(user)
+            new_balance = user.balance + money
+            user.update(**{"balance": new_balance})
+            return {"balance": new_balance}
         self._not_found()
 
     def _withdraw_in_dollars(self, user_id, money):
@@ -77,15 +61,20 @@ class Action:
     def _withdraw(self, user_id, money, mode):
         if type(user_id) != str or type(money) != int:
             raise ActionError("Inputs do not have proper type")
-        for user in users:
-            if user.user_id == user_id:
-                self._check_session(user)
-                if mode == "dollars":
+        user = User.objects(user_id=user_id).first()
+        if user:
+            self._check_session(user)
+            if mode == "dollars":
+                try:
                     money = (money * convert("usd", "cop"))
-                if user.balance < money:
-                    raise ActionError("Insufficient balance")
-                user.balance = user.balance - money
-                return {"balance": user.balance}
+                except CurrConvError as e:
+                    raise ActionError(f"Can not connect to the currency service (aka: el sistema esta caido) {str(e)}")
+            if user.balance < money:
+                raise ActionError("Insufficient balance")
+            new_balance = user.balance - money
+            user.update(**{"balance": new_balance})
+            return {"balance": new_balance}
+
         self._not_found()
 
     def _check_session(self, user):
@@ -140,11 +129,13 @@ class Step:
             if self._execute_conditions(data):
                 params = self._get_params(data)
                 return self._action.execute(**params)
+            else:
+                raise StepError("Step was skipped")
         else:
             return {}
 
     def __str__(self):
-        return f"Step: {self.id} -> {self._action.name if self._action else 'No action'}"
+        return f"Step: {self.id} -> Action: {self._action.name if self._action else 'No action'}"
 
 
 class WorkFlowError(Exception):
@@ -210,11 +201,12 @@ class WorkFlow():
         return step
 
     def _flow(self, step, history):
-        history.append(step)
+        history.append(str(step))
         try:
             response = step.run(self.data)
         except (StepError, ActionError) as e:
-            raise WorkFlowError(f"Error executing flow: {str(e)}")
+            history.append(str(e))
+            return
 
         if response is not None:
             for k, v in response.items():

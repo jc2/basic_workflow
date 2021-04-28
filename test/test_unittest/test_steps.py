@@ -1,6 +1,6 @@
 import pytest
 
-from main import StepError, Step
+from app.workflow.core import StepError, Step
 
 WORKFLOW_DATA = {
     "test1": {"a": None},

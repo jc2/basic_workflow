@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from main import Action, ActionError
+from app.workflow.core import Action, ActionError
 
 
 @pytest.mark.parametrize(
@@ -102,7 +102,7 @@ def test_withdraw_in_pesos(user_id, money, expected):
         (12345, 100000),
         ("user2", 100000),
         ("user3", 100000),
-        ("user1", 300000),
+        ("user1", 3000000),
     ]
 )
 def test_withdraw_in_pesos_exceptions(user_id, money):
@@ -134,7 +134,7 @@ def test_withdraw_in_dollars(user_id, money, expected):
         (12345, 50),
         ("user2", 50),
         ("user3", 50),
-        ("user1", 100),
+        ("user1", 600),
     ]
 )
 def test_withdraw_in_dollars_exceptions(user_id, money):

@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import requests
 
-from main import WorkFlow, WorkFlowError, users
+from app.workflow.core import WorkFlow, WorkFlowError
+from app.models import User
 
 input_json_ok = """
 {
@@ -117,7 +118,7 @@ input_json_ok = """
       "transitions": [
         {
           "condition": [
-            {"from_id": "account_balance", "field_id": "balance", "operator": "gt", "value": 40}
+            {"from_id": "account_balance_20", "field_id": "balance", "operator": "gt", "value": 40}
           ],
           "target": "withdraw_50"
         }
@@ -282,27 +283,48 @@ def test_run_flow(user_id, pin, expected_balance):
         mock_get.return_value = mock_resp
         w.run()
 
-    for user in users:
-        if user.user_id == user_id:
-            assert user.balance == expected_balance
+    user = User.objects(user_id=user_id, pin=pin).first()
+    assert user.balance == expected_balance
 
 
 @pytest.mark.parametrize(
     "user_id,pin",
     [
-        ("105398891_4", 2090),
-        ("105398891_1", 20901),
+        ("105398891_1", 2091),
     ]
 )
 def test_run_flow_exceptions(user_id, pin):
     j = json.loads(input_json_ok)
     j["trigger"]["params"]["user_id"] = user_id
     j["trigger"]["params"]["pin"] = pin
-    w = WorkFlow(input_json_ok)
-    with pytest.raises(WorkFlowError):
-        with patch('clients.currconv.requests.get') as mock_get:
-            mock_resp = requests.models.Response()
-            mock_resp.status_code = 200
-            mock_resp._content = json.dumps({"USD_COP": 1}).encode()
-            mock_get.return_value = mock_resp
-            w.run()
+    w = WorkFlow(json.dumps(j))
+    with patch('clients.currconv.requests.get') as mock_get:
+        mock_resp = requests.models.Response()
+        mock_resp.status_code = 200
+        mock_resp._content = json.dumps({"USD_COP": 1}).encode()
+        mock_get.return_value = mock_resp
+        history = w.run()
+    print(history)
+    assert "not found" in history[-1]
+
+
+@pytest.mark.parametrize(
+    "user_id,pin",
+    [
+        ("105398891_4", 2090),
+
+    ]
+)
+def test_run_flow_exceptions2(user_id, pin):
+    j = json.loads(input_json_ok)
+    j["trigger"]["params"]["user_id"] = user_id
+    j["trigger"]["params"]["pin"] = pin
+    w = WorkFlow(json.dumps(j))
+    with patch('clients.currconv.requests.get') as mock_get:
+        mock_resp = requests.models.Response()
+        mock_resp.status_code = 200
+        mock_resp._content = json.dumps({"USD_COP": 1}).encode()
+        mock_get.return_value = mock_resp
+        history = w.run()
+    print(history)
+    assert "balance" in history[-1]

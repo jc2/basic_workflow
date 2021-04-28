@@ -11,16 +11,20 @@ This projects is a demo. The idea is to simulate a workflow with different Bank 
 - [How to test](#how-to-test)
 
 # Todo
-- [ ] Unittest as classes
+- [ ] Unittest as classe
 - [ ] Add functional tests
 - [ ] Add fixtures
+- [ ] Improve Custom Exceptions
 - [ ] Add dotenv
-- [ ] Add factory for tests
+- [ ] Add factory for tests to create things in DB and delete them at the end
 - [ ] Session security
 - [ ] Api Logs
 - [ ] Add Tox
 - [ ] Add Black
 - [ ] Add a Docker entry point
+- [ ] Add extensions such as Mongo as factories
+- [ ] Add a seed function to pre-populated db
+- [ ] Create a app to manage users
 
 # How to RUN using docker compose
 This project use an external API to convert currencies. You need to create an account in currencyconverterapi.com and set the APIKEY in the `.env` file
@@ -31,7 +35,7 @@ This project use an external API to convert currencies. You need to create an ac
 
 # Users
 ## Create user
-- `curl --header "Content-Type: application/json" --request POST --data '{"user_id":"jc","pin":12345}' http://localhost:8000/users/`
+- `curl --header "Content-Type: application/json" --request POST --data '{"user_id":"105398891","pin":2090, "balance": 1000000}' http://localhost:8000/users/`
 ## Get users
 - `curl http://localhost:8000/users/`
 
@@ -39,4 +43,5 @@ This project use an external API to convert currencies. You need to create an ac
 
 # How to test
 - `pip install -r requirements.txt`
+- Export env var in the `.env` file
 - `pytest -v`
