@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, jsonify, request, render_template
 
 from app.models import User
-from app.workflow.core import WorkFlow
+from app.workflow.core import WorkFlow, WorkFlowError
 
 bp = Blueprint('bp', __name__)
 
@@ -61,6 +61,10 @@ def upload_file():
     if request.method == 'POST':
         f = request.files['file']
         json_ = f.read()
-        workflow = WorkFlow(json_)
-        workflow_history = workflow.run()
+        try:
+            workflow = WorkFlow(json_)
+        except WorkFlowError as e:
+            return jsonify({"Error": str(e)})
+        else:
+            workflow_history = workflow.run()
     return render_template('history.html', history=workflow_history)
