@@ -7,7 +7,6 @@ This projects is a demo. The idea is to simulate a workflow with different Bank 
 - [Users](#users)
   - [Create user](#create-user)
   - [Get users](#get-users)
-- [Load Workflow](#load-workflow)
 - [How to test](#how-to-test)
 
 # Todo
@@ -31,15 +30,13 @@ This project use an external API to convert currencies. You need to create an ac
 - Create a file using `./config/mongo/mongo-init.js.example` as template. Keep the same name
 - Create a file using `.env.example` as template. Keep the same name
 - `docker-compose up --build`
-- Go to: `localhost:8000/users/`
+- Go to: `localhost:8000/`
 
 # Users
 ## Create user
 - `curl --header "Content-Type: application/json" --request POST --data '{"user_id":"105398891","pin":2090, "balance": 1000000}' http://localhost:8000/users/`
 ## Get users
 - `curl http://localhost:8000/users/`
-
-# Load Workflow
 
 # How to test
 - `pip install -r requirements.txt`
